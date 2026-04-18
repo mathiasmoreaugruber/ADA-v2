@@ -1,0 +1,293 @@
+WITH Ada.Text_IO, Ada.Integer_Text_IO;
+USE  Ada.Text_IO, Ada.Integer_Text_IO;
+WITH Gestion_Identites;
+USE  Gestion_Identites;
+WITH Gestion_Client;
+USE  Gestion_Client;
+WITH Gestion_Personnel;
+USE  Gestion_Personnel;
+
+PROCEDURE Main IS
+
+   Abr      : T_ABR_Clients  := NULL;
+   Employes : T_Ptr_Employe  := NULL;
+
+   FUNCTION Lire_Entier (Min, Max : Integer) RETURN Integer IS
+      N : Integer;
+   BEGIN
+      LOOP
+         BEGIN
+            Get (N); Skip_Line;
+            IF N >= Min AND THEN N <= Max THEN RETURN N; END IF;
+            Put ("Valeur entre "); Put (Min, 1);
+            Put (" et "); Put (Max, 1); Put_Line (", reessayez :");
+         EXCEPTION
+            WHEN Data_Error    => Skip_Line;
+               Put_Line ("Entier attendu, reessayez :");
+            WHEN Constraint_Error => Skip_Line;
+               Put_Line ("Valeur hors limites, reessayez :");
+         END;
+      END LOOP;
+   END Lire_Entier;
+
+   FUNCTION Mk_Nom (S : String; K : Integer) RETURN T_Nom IS
+      N : T_Nom;
+   BEGIN
+      N.Nom := (OTHERS => ' ');
+      N.Nom (1 .. K) := S (S'First .. S'First + K - 1);
+      N.Knom := K;
+      RETURN N;
+   END Mk_Nom;
+
+   FUNCTION Mk_Id (Nom : String; Kn : Integer;
+                   Pre : String; Kp : Integer) RETURN T_Id IS
+      I : T_Id;
+   BEGIN
+      I.Id_Nom    := Mk_Nom (Nom, Kn);
+      I.Id_Prenom := Mk_Nom (Pre, Kp);
+      RETURN I;
+   END Mk_Id;
+
+   FUNCTION Mk_Client (Nom : String; Kn : Integer;
+                       Pre : String; Kp : Integer) RETURN T_Client IS
+      C : T_Client;
+   BEGIN
+      C.Id     := Mk_Id (Nom, Kn, Pre, Kp);
+      C.Nb_Loc := 0; C.Fact := 0; C.Mont := 0;
+      RETURN C;
+   END Mk_Client;
+
+   PROCEDURE Charger_Donnees IS
+      E  : T_Employe;
+      Ok : Boolean;
+
+      PROCEDURE Ajoute_Emp (Nom : String; Kn : Integer;
+                             Pre : String; Kp : Integer;
+                             Cat : T_Categorie;
+                             Sta : T_Statut) IS
+      BEGIN
+         E.ID              := Mk_Id (Nom, Kn, Pre, Kp);
+         E.Categorie       := Cat;
+         E.Nb_J_Prestation := 0;
+         E.Statut          := Sta;
+         E.Depart          := False;
+         Ajout_Emp (E, Employes, Ok);
+      END Ajoute_Emp;
+
+   BEGIN
+      Put_Line ("=== Chargement des donnees initiales ===");
+
+      Nv_Client (Mk_Client ("Mouton",   6, "Aline",   5), Abr);
+      Nv_Client (Mk_Client ("Belle",    5, "Lucie",   5), Abr);
+      Nv_Client (Mk_Client ("Romeo",    5, "Juliette",8), Abr);
+      Nv_Client (Mk_Client ("Personne", 8, "Paul",    4), Abr);
+      Nv_Client (Mk_Client ("Tigresse", 8, "Lily",    4), Abr);
+      Nv_Client (Mk_Client ("Arc",      3, "Jean",    4), Abr);
+      Nv_Client (Mk_Client ("Rebel",    5, "Alicia",  6), Abr);
+      Nv_Client (Mk_Client ("Dubois",   6, "Josette", 7), Abr);
+      Nv_Client (Mk_Client ("Bartok",   6, "Belle",   5), Abr);
+
+      Ajoute_Emp ("Galvin", 6, "Luc",    3, Ingenieur,  En_Prestation);
+      Ajoute_Emp ("Aurele", 6, "Marc",   4, Ingenieur,  En_Prestation);
+      Ajoute_Emp ("Guerre", 6, "Martin", 6, Technicien, En_Prestation);
+      Ajoute_Emp ("Fer",    3, "Lucie",  5, Technicien, Disponible);
+
+      Put_Line ("Donnees chargees.");
+      New_Line;
+   END Charger_Donnees;
+
+   PROCEDURE Affiche_Menu IS
+   BEGIN
+      New_Line;
+      Put_Line ("============================================================");
+      Put_Line ("  MENU PRINCIPAL");
+      Put_Line ("============================================================");
+      Put_Line (" 1  Visualiser la clientele (ABR prefixe)");
+      Put_Line (" 2  Rechercher un client");
+      Put_Line (" 3  Ajouter un client");
+      Put_Line (" 4  Enregistrer un reglement client");
+      Put_Line ("---");
+      Put_Line (" 5  Visualiser le personnel");
+      Put_Line (" 6  Afficher les infos d'un employe");
+      Put_Line (" 7  Ajouter un employe");
+      Put_Line (" 8  Demande de depart d'un employe");
+      Put_Line (" 9  Simuler fin de prestation d'un employe");
+      Put_Line ("10  Chercher un employe disponible");
+      Put_Line ("---");
+      Put_Line (" 0  Quitter");
+      Put ("Choix : ");
+   END Affiche_Menu;
+
+   PROCEDURE Saisir_Categorie (Cat : OUT T_Categorie) IS
+      Rep : Character;
+   BEGIN
+      LOOP
+         Put ("Categorie (T=Technicien / I=Ingenieur) : ");
+         DECLARE Ligne : String (1 .. 10); Last : Integer; BEGIN
+            Get_Line (Ligne, Last);
+            IF Last >= 1 THEN Rep := Ligne (1); ELSE Rep := ' '; END IF;
+         END;
+         EXIT WHEN Rep = 'T' OR Rep = 't' OR Rep = 'I' OR Rep = 'i';
+         Put_Line ("Saisie invalide.");
+      END LOOP;
+      IF Rep = 'T' OR Rep = 't' THEN Cat := Technicien;
+      ELSE Cat := Ingenieur;
+      END IF;
+   END Saisir_Categorie;
+
+   Choix : Integer;
+
+BEGIN
+   Charger_Donnees;
+
+   LOOP
+      Affiche_Menu;
+      Choix := Lire_Entier (0, 10);
+      New_Line;
+
+      CASE Choix IS
+
+         WHEN 0 =>
+            Put_Line ("Au revoir !");
+            EXIT;
+
+         WHEN 1 =>
+            Put_Line ("=== Clientele (ordre prefixe) ===");
+            IF Abr = NULL THEN
+               Put_Line ("Aucun client.");
+            ELSE
+               Visu_Clients (Abr);
+            END IF;
+
+         WHEN 2 =>
+            Put_Line ("=== Recherche d'un client ===");
+            DECLARE Id : T_Id; BEGIN
+               Saisie_identite (Id);
+               Recherche (Id, Abr);
+            END;
+
+         WHEN 3 =>
+            Put_Line ("=== Ajout d'un client ===");
+            DECLARE
+               C     : T_Client;
+               Noeud : T_ABR_Clients;
+            BEGIN
+               C     := Saisie_Client;
+               Noeud := Cherche_Client (C.Id, Abr);
+               IF Noeud /= NULL THEN
+                  Put_Line ("Ce client existe deja.");
+               ELSE
+                  Nv_Client (C, Abr);
+                  Put_Line ("Client ajoute.");
+               END IF;
+            END;
+
+         WHEN 4 =>
+            Put_Line ("=== Reglement client ===");
+            DECLARE
+               Id      : T_Id;
+               Noeud   : T_ABR_Clients;
+               Montant : Integer;
+            BEGIN
+               Put_Line ("Identite du client :");
+               Saisie_identite (Id);
+               Noeud := Cherche_Client (Id, Abr);
+               IF Noeud = NULL THEN
+                  Put_Line ("Client non trouve.");
+               ELSIF Noeud.Client.Fact = 0 THEN
+                  Put_Line ("Aucune facture en instance pour ce client.");
+               ELSE
+                  Put ("Facture en instance : ");
+                  Put (Noeud.Client.Fact, 1);
+                  Put_Line (" euros.");
+                  Put ("Montant a regler (1 .. ");
+                  Put (Noeud.Client.Fact, 1); Put (") : ");
+                  Montant := Lire_Entier (1, Noeud.Client.Fact);
+                  Reglement (Id, Montant, Abr);
+               END IF;
+            END;
+
+         WHEN 5 =>
+            Put_Line ("=== Personnel ===");
+            Vis_Employes (Employes);
+
+         WHEN 6 =>
+            Put_Line ("=== Infos d'un employe ===");
+            DECLARE
+               N   : T_Nom;
+               Cat : T_Categorie;
+               Ok  : Boolean;
+            BEGIN
+               Put ("Nom : ");
+               Saisie_N (N);
+               Saisir_Categorie (Cat);
+               Vis_Employe_D (Employes, N, Cat, Ok);
+            END;
+
+         WHEN 7 =>
+            Put_Line ("=== Ajout d'un employe ===");
+            DECLARE E : T_Employe; Ok : Boolean; BEGIN
+               Saisie_Emp (E);
+               Ajout_Emp (E, Employes, Ok);
+               IF Ok THEN Put_Line ("Employe ajoute."); END IF;
+            END;
+
+         WHEN 8 =>
+            Put_Line ("=== Demande de depart ===");
+            DECLARE
+               N   : T_Nom;
+               Cat : T_Categorie;
+               Ok  : Boolean;
+            BEGIN
+               Put ("Nom : ");
+               Saisie_N (N);
+               Saisir_Categorie (Cat);
+               Supp_Emp (Employes, N, Cat, Ok);
+               IF NOT Ok THEN Put_Line ("Employe non trouve."); END IF;
+            END;
+
+         WHEN 9 =>
+            Put_Line ("=== Simuler fin de prestation ===");
+            DECLARE
+               N        : T_Nom;
+               Cat      : T_Categorie;
+               Nb_Jours : Integer;
+            BEGIN
+               Put ("Nom : ");
+               Saisie_N (N);
+               Saisir_Categorie (Cat);
+               Put ("Nombre de jours de la prestation : ");
+               Nb_Jours := Lire_Entier (1, 10);
+               Fin_Prestation (Employes, N, Cat, Nb_Jours);
+               Put_Line ("Fin de prestation enregistree.");
+            END;
+
+         WHEN 10 =>
+            Put_Line ("=== Chercher un employe disponible ===");
+            DECLARE
+               Cat : T_Categorie;
+               Ptr : T_Ptr_Employe;
+            BEGIN
+               Saisir_Categorie (Cat);
+               Ptr := Cherche_Dispo (Employes, Cat);
+               IF Ptr = NULL THEN
+                  Put_Line ("Aucun employe disponible de ce profil.");
+               ELSE
+                  Put ("Employe disponible trouve : ");
+                  Affiche (Ptr.Val.ID.Id_Nom);
+                  Put (" ");
+                  Affiche (Ptr.Val.ID.Id_Prenom);
+                  Put (" (");
+                  Put (Ptr.Val.Nb_J_Prestation, 1);
+                  Put_Line (" jours de prestation)");
+               END IF;
+            END;
+
+         WHEN OTHERS =>
+            Put_Line ("Option invalide.");
+
+      END CASE;
+
+   END LOOP;
+
+END Main;
